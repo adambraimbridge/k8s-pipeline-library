@@ -19,8 +19,8 @@ class EnvRegistrySpec extends Specification {
 
   def "should get env by cluster full name for prod environment"() {
     when:
-    def envByClusterTypeAndEnvName = EnvsRegistry.getEnvironment(ClusterType.PUBLISHING, Environment.PROD_NAME)
-    def envByEnvFullName = EnvsRegistry.getEnvironmentByFullName("prod-publish-eu")
+    def envByClusterTypeAndEnvName = EnvsRegistry.getEnvironment(ClusterType.DELIVERY, Environment.PROD_NAME)
+    def envByEnvFullName = EnvsRegistry.getEnvironmentByFullName("prod-delivery-eu")
     then:
     envByClusterTypeAndEnvName == envByEnvFullName
   }

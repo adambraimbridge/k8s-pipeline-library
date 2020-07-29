@@ -141,12 +141,16 @@ static AppConfig populateAppConfig(List<AppConfigNameComponentHandler> handlers,
   appConfig
 }
 
-static List<AppConfig> filterAppConfigsBasedOnEnvAndClusterType(Environment targetEnv, List<AppConfig> appConfigsPerClusterType, ClusterType deployOnlyInCluster) {
-  List<AppConfig> currentAppConfigs
+static List<AppConfig> filterAppConfigsBasedOnEnvAndClusterTypeAndRegion(Environment targetEnv, List<AppConfig> appConfigsPerClusterType, ClusterType deployOnlyInCluster = null, Region deployOnlyRegion = null) {
+  List<AppConfig> currentAppConfigs = []
   if (targetEnv.cluster.clusterType == ClusterType.ALL_IN_CHART) {
     currentAppConfigs = appConfigsPerClusterType.findAll { matchingTargetEnvNameOrMissingIt(it, targetEnv) }
-  } else {
-    currentAppConfigs = appConfigsPerClusterType.findAll { matchingTargetEnvNameOrMissingIt(it, targetEnv) && it.clusterType == deployOnlyInCluster }
+  } else if (deployOnlyInCluster) {
+    if (deployOnlyRegion && deployOnlyRegion != Region.ALL) {
+      currentAppConfigs = appConfigsPerClusterType.findAll { matchingTargetEnvNameOrMissingIt(it, targetEnv) && it.clusterType == deployOnlyInCluster && it.region == deployOnlyRegion }
+    } else {
+      currentAppConfigs = appConfigsPerClusterType.findAll { matchingTargetEnvNameOrMissingIt(it, targetEnv) && it.clusterType == deployOnlyInCluster }
+    }
   }
   currentAppConfigs
 }
@@ -174,10 +178,13 @@ private static List<AppConfig> linkAppConfigHierarchy(List<AppConfig> apps, Regi
     boolean sameClusterType = currentApp?.clusterType == prevApp?.clusterType
     boolean sameEksStatus = currentApp?.isEks == prevApp?.isEks
 
-    if ((sameClusterType && sameEksStatus) && (potentialChildHasEnv || potentialChildHasRegion)) {
-      prevApp.child = currentApp
+    if (sameClusterType && sameEksStatus) {
       if (potentialChildHasRegion && potentialChildRegionIsNotSpecifiedRegion) {
         prevApp.child = null
+      }
+
+      if (potentialChildHasEnv || potentialChildHasRegion) {
+        prevApp.child = currentApp
       }
     }
     prevApp = currentApp

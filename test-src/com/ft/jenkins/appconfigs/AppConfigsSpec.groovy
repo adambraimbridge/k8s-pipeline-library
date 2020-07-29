@@ -122,7 +122,7 @@ class AppConfigsSpec extends Specification {
     when:
     List<AppConfig> apps = parseAppConfigFileNames(TEST_APP_CONFIG_FILE_NAMES_1)
     List<String> filteredAppConfigFileNames = AppConfigs
-            .filterAppConfigsBasedOnEnvAndClusterType(stagingEnv, apps, pacCluster.clusterType)
+            .filterAppConfigsBasedOnEnvAndClusterTypeAndRegion(stagingEnv, apps, pacCluster.clusterType)
             .findAll { !it.isInvalidEnvironment }
             .collect({ it.toConfigFileName() })
     then:
@@ -144,7 +144,7 @@ class AppConfigsSpec extends Specification {
     when:
     List<AppConfig> apps = parseAppConfigFileNames(TEST_APP_CONFIG_FILE_NAMES_1)
     List<AppConfig> filteredAppConfigs = AppConfigs
-            .filterAppConfigsBasedOnEnvAndClusterType(stagingEnv, apps, deliveryCluster.clusterType)
+            .filterAppConfigsBasedOnEnvAndClusterTypeAndRegion(stagingEnv, apps, deliveryCluster.clusterType)
     List<String> filteredAppConfigFileNames = AppConfigs
             .filterAppConfigsBasedOnMostSpecificDeployments(filteredAppConfigs)
             .collect({ it.toConfigFileName() })
@@ -167,7 +167,7 @@ class AppConfigsSpec extends Specification {
     when:
     List<AppConfig> apps = parseAppConfigFileNames(TEST_APP_CONFIG_FILE_NAMES_1)
     List<AppConfig> filteredAppConfigs = AppConfigs
-            .filterAppConfigsBasedOnEnvAndClusterType(stagingEnv, apps, deliveryCluster.clusterType)
+            .filterAppConfigsBasedOnEnvAndClusterTypeAndRegion(stagingEnv, apps, deliveryCluster.clusterType)
     List<String> filteredAppConfigFileNames = AppConfigs
             .filterAppConfigsBasedOnMostSpecificDeployments(filteredAppConfigs)
             .collect({ it.toConfigFileName() })
@@ -191,7 +191,7 @@ class AppConfigsSpec extends Specification {
     when:
     List<AppConfig> apps = parseAppConfigFileNames(TEST_APP_CONFIG_FILE_NAMES_2)
     List<AppConfig> filteredAppConfigs = AppConfigs
-            .filterAppConfigsBasedOnEnvAndClusterType(stagingEnv, apps, pacCluster.clusterType)
+            .filterAppConfigsBasedOnEnvAndClusterTypeAndRegion(stagingEnv, apps, pacCluster.clusterType)
     List<String> filteredAppConfigFileNames = AppConfigs
             .filterAppConfigsBasedOnMostSpecificDeployments(filteredAppConfigs)
             .findAll { !it.isInvalidEnvironment }
@@ -218,7 +218,7 @@ class AppConfigsSpec extends Specification {
     List<AppConfig> invalidAppConfigs = apps.findAll { it.isInvalidClusterType || it.isInvalidEnvironment || it.isInvalidRegion }
     apps.removeAll(invalidAppConfigs)
     List<AppConfig> filteredAppConfigs = AppConfigs
-            .filterAppConfigsBasedOnEnvAndClusterType(prodEnv, apps, pacCluster.clusterType)
+            .filterAppConfigsBasedOnEnvAndClusterTypeAndRegion(prodEnv, apps, pacCluster.clusterType)
     List<String> filteredAppConfigFileNames = AppConfigs
             .filterAppConfigsBasedOnMostSpecificDeployments(filteredAppConfigs)
             .collect({ it.toConfigFileName() })
@@ -244,7 +244,7 @@ class AppConfigsSpec extends Specification {
     when:
     List<AppConfig> apps = parseAppConfigFileNames(TEST_APP_CONFIG_FILE_NAMES_2)
     List<AppConfig> filteredAppConfigs = AppConfigs
-            .filterAppConfigsBasedOnEnvAndClusterType(stagingEnv, apps, allInChartCluster.clusterType)
+            .filterAppConfigsBasedOnEnvAndClusterTypeAndRegion(stagingEnv, apps, allInChartCluster.clusterType)
     List<String> filteredAppConfigFileNames = AppConfigs
             .filterAppConfigsBasedOnMostSpecificDeployments(filteredAppConfigs)
             .findAll { !it.isInvalidEnvironment }
@@ -292,7 +292,6 @@ class AppConfigsSpec extends Specification {
     }
     def expectedAppConfigFileNames = [
             "concept-events-notifications-reader_delivery",
-            "concept-events-notifications_delivery",
             "concept-events-notifications_delivery_staging_us"
     ]
     when:
@@ -303,12 +302,48 @@ class AppConfigsSpec extends Specification {
             "concept-events-notifications_delivery_staging_us.yaml"
     ])
     List<AppConfig> filteredAppConfigs = AppConfigs
-            .filterAppConfigsBasedOnEnvAndClusterType(stagingEnv, apps, deliveryCluster.clusterType)
+            .filterAppConfigsBasedOnEnvAndClusterTypeAndRegion(stagingEnv, apps, deliveryCluster.clusterType)
     List<String> filteredAppConfigFileNames = AppConfigs
-            .filterAppConfigsBasedOnMostSpecificDeployments(filteredAppConfigs, Region.EU)
+            .filterAppConfigsBasedOnMostSpecificDeployments(filteredAppConfigs, Region.ALL)
             .collect({ it.toConfigFileName() })
     then:
     expectedAppConfigFileNames.sort() == filteredAppConfigFileNames.sort()
+  }
+
+  def "should detect correct deployment candidates when a deploy only region is specified"(List<String> expectedAppConfigFileNames, Region region) {
+    given:
+    Cluster deliveryCluster = new Cluster(ClusterType.DELIVERY)
+    Environment stagingEnv = new Environment(STAGING_NAME, deliveryCluster)
+    stagingEnv.with {
+      regions = [Region.EU, Region.US]
+    }
+
+    when:
+    List<AppConfig> apps = parseAppConfigFileNames([
+            "delivery-varnish_delivery",
+            "delivery-varnish_delivery_prod_eu",
+            "delivery-varnish_delivery_prod_us",
+            "delivery-varnish_delivery_staging_eu",
+            "delivery-varnish_delivery_staging_us",
+            "delivery-varnish_eks_delivery_dev_eu",
+            "delivery-varnish_eks_delivery_prod_eu",
+            "delivery-varnish_eks_delivery_prod_us",
+            "delivery-varnish_eks_delivery_staging_eu",
+            "delivery-varnish_eks_delivery_staging_us",
+            "delivery-varnish_eks_delivery_test_eu"
+    ])
+    List<AppConfig> filteredAppConfigs = AppConfigs
+            .filterAppConfigsBasedOnEnvAndClusterTypeAndRegion(stagingEnv, apps, deliveryCluster.clusterType, region)
+    List<String> filteredAppConfigFileNames = AppConfigs
+            .filterAppConfigsBasedOnMostSpecificDeployments(filteredAppConfigs, region)
+            .collect({ it.toConfigFileName() })
+    then:
+    expectedAppConfigFileNames.sort() == filteredAppConfigFileNames.sort()
+    where:
+    expectedAppConfigFileNames                                                                                                                                               | region
+    ["delivery-varnish_delivery_staging_us", "delivery-varnish_eks_delivery_staging_us"]                                                                                     | Region.US
+    ["delivery-varnish_delivery_staging_eu", "delivery-varnish_eks_delivery_staging_eu"]                                                                                     | Region.EU
+    ["delivery-varnish_delivery_staging_eu", "delivery-varnish_delivery_staging_us", "delivery-varnish_eks_delivery_staging_eu", "delivery-varnish_eks_delivery_staging_us"] | Region.ALL
   }
 
   private static List<AppConfig> parseAppConfigFileNames(List<String> fileNames) {
